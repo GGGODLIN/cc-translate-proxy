@@ -4,9 +4,12 @@
 
 ## 為什麼做這個
 
-Claude Code 會根據你最後一句話的語言調整回覆。中英混用會多燒 token，且模型用英文推理通常比中文穩 — 但你個人偏好用繁中思考、用繁中讀。
+兩件事讓我覺得值得寫個 sidecar：
 
-這個 proxy 介在 cc 跟 `api.anthropic.com` 中間：你打的繁中先翻成英文再送過去；模型回的英文一邊原樣回 cc，一邊翻成繁中渲染在本機網頁上。**CC 那邊的對話 100% 英文**（便宜、穩定），**你這邊讀到的 100% 繁中**。
+1. **Claude Code 用英文比中文穩**。Anthropic 自家 [multilingual benchmark](https://platform.claude.com/docs/en/build-with-claude/multilingual-support) 顯示 Sonnet 4.5 中文（簡）對英文 MMLU 是 96.9%；最近一篇 [vibe coding 實測論文](https://arxiv.org/abs/2604.14210) 也指出中文 prompt 的問題解決率比英文低 4.5–9.9 個百分點。同樣語意中文 token 數還更多（[Petrov et al. 2023](https://arxiv.org/abs/2305.15425) 量過跨語 token 數可差 15x）。再加上 cc 會跟著「最後一句的語言」調整輸出，中英混打很容易把整段對話拉進中文模式。
+2. **Sonnet 偶爾會自己切到韓文 / 日文**。這是已知 bug，繁中使用者在 [#30025](https://github.com/anthropics/claude-code/issues/30025)（中文中突切韓文）跟 [#46846](https://github.com/anthropics/claude-code/issues/46846)（CLAUDE.md 明寫繁中仍回日文）都有重現案例。光靠 prompt / CLAUDE.md 提醒治不住。
+
+這個 proxy 介在 cc 跟 `api.anthropic.com` 中間：你打的繁中先翻成英文再送過去；模型回的英文一邊原樣回 cc，一邊翻成繁中渲染在本機網頁上。**CC 那邊的對話 100% 英文**（便宜、穩定、不會自己切日韓文），**你這邊讀到的 100% 繁中**。
 
 ## 截圖
 
@@ -100,19 +103,6 @@ echo "Render UI: http://localhost:9090/$UUID"
 ````
 
 對應的 `~/.claude/skills/normal/SKILL.md` 要 emit `<cc-translate-proxy:disable uuid="<uuid>" />` 退出翻譯。
-
-## 架構
-
-| 檔案 | 作用 |
-|---|---|
-| `src/cc_i18n_proxy/server.py` | FastAPI proxy，攔截 `/v1/messages` |
-| `src/cc_i18n_proxy/translator.py` | 翻譯 chain（Gemini → Groq → OpenRouter 自動切換）|
-| `src/cc_i18n_proxy/providers/` | 各 provider 的 adapter 跟 state store |
-| `src/cc_i18n_proxy/cache.py` | 以 content hash 為 key 的 SQLite cache |
-| `src/cc_i18n_proxy/audit.py` | Append-only JSONL audit log |
-| `src/cc_i18n_proxy/pipeline.py` | 翻譯 pipeline orchestrator |
-| `src/cc_i18n_proxy/intl_sentinel.py` | per-workspace `/intl` enable 訊號 |
-| `scripts/render_server.py` | `:9090` 上的繁中 render 網頁 |
 
 ## 注意事項
 
