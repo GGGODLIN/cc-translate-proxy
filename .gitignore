@@ -1,0 +1,29 @@
+node_modules/
+.env
+*.db
+dist/
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+build/
+
+# Spike raw dumps (large, regeneratable)
+*.raw.md
+
+# Audit / runtime artifacts
+audit/
+audit_logs/
+*.jsonl
+last-enable.json
+state/
+
+# IDE
+.idea/
+.vscode/
