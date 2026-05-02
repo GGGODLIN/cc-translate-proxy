@@ -1,82 +1,84 @@
 # cc-translate-proxy
 
-繁中 / English bilingual sidecar proxy for [Claude Code](https://claude.com/claude-code). Type prompts in Chinese; CC sees English on the wire to Anthropic; you read the model's reply translated back to Chinese in a local browser tab.
+讓 [Claude Code](https://claude.com/claude-code) 用英文跟 Anthropic 對話、你用繁中讀寫的 sidecar 翻譯 proxy。
 
-## Why
+## 為什麼做這個
 
-Claude Code adapts to whatever language matches the user's last prompt. Mixing Chinese and English in the same session inflates token usage, and Chinese inference can drift in tone or precision compared to English. This proxy keeps the **CC ↔ Anthropic conversation entirely in English** (cheaper, more stable) while preserving Chinese as the input/output surface you actually read and type.
+Claude Code 會根據你最後一句話的語言調整回覆。中英混用會多燒 token，且模型用英文推理通常比中文穩 — 但你個人偏好用繁中思考、用繁中讀。
 
-## Screenshots
+這個 proxy 介在 cc 跟 `api.anthropic.com` 中間：你打的繁中先翻成英文再送過去；模型回的英文一邊原樣回 cc，一邊翻成繁中渲染在本機網頁上。**CC 那邊的對話 100% 英文**（便宜、穩定），**你這邊讀到的 100% 繁中**。
 
-> _Screenshots coming soon._
+## 截圖
 
-## How it works
+> _截圖補上中。_
+
+## 運作方式
 
 ```
-You type 中文
+你輸入「幫我重構這個函式」
    │
    ▼
-cc-translate-proxy intercepts /v1/messages
-   ├─ translates 中文 → English (Gemini Flash / Groq / OpenRouter, with failover)
-   ├─ forwards English to api.anthropic.com
-   └─ forks the English reply → translates back to 中文 → renders in a local web UI
+cc-translate-proxy 攔截 /v1/messages
+   ├─ 把繁中翻成英文（Gemini Flash / Groq / OpenRouter，自動切換）
+   ├─ 英文版送 api.anthropic.com
+   └─ 英文回應 fork 一份 → 翻成繁中 → 渲染到本機網頁
 
-CC sees a clean English conversation; you read everything in 中文.
+CC 看到乾淨英文對話；你瀏覽器讀到繁中 render。
 ```
 
-## Disclosure
+## 使用前須知
 
-- **Prompts and replies are sent to a third-party LLM** (Gemini Flash by default) for translation. Don't enable on sessions containing sensitive content.
-- **Audit logs (containing translated prompts/replies) are written to local disk** under `audit/`. They're for inspection/debugging — clean them up periodically.
-- **Personal experimental tool**, not production-grade. Expect rough edges.
+- **你的 prompt 跟 cc 回覆會送給第三方 LLM**（預設 Gemini Flash）做翻譯。**含敏感內容的 session 不要開**。
+- **本機會留 audit log**（含翻譯前後的 prompt / 回覆）在 `audit/` 目錄。除錯用，要定期清。
+- **個人實驗工具**，不適合 production。預期會碰到 bug。
 
-## Quickstart
+## 快速開始
 
-Requirements: Python 3.12+, [`uv`](https://github.com/astral-sh/uv).
+需要：Python 3.12+、[`uv`](https://github.com/astral-sh/uv)。
 
-1. Clone & install:
+1. Clone 跟安裝：
    ```bash
    git clone https://github.com/gggodlin/cc-translate-proxy.git
    cd cc-translate-proxy
    uv sync
    ```
 
-2. Set translator API key (one of these — chain order is Gemini → Groq → OpenRouter):
+2. 設翻譯 provider 的 API key（任一即可，chain 順序為 Gemini → Groq → OpenRouter）：
    ```bash
-   export GEMINI_API_KEY=...           # default
-   # OR
-   export GROQ_API_KEY=...             # alternative
-   # OR
-   export OPENROUTER_API_KEY=...       # alternative
+   export GEMINI_API_KEY=...           # 預設
+   # 或
+   export GROQ_API_KEY=...
+   # 或
+   export OPENROUTER_API_KEY=...
    ```
 
-3. Point Claude Code at the proxy:
+3. 把 cc 指向 proxy：
    ```bash
    export ANTHROPIC_BASE_URL=http://localhost:8080
-   export ENABLE_TOOL_SEARCH=auto      # restore deferred MCP loading (see Caveats)
+   export ENABLE_TOOL_SEARCH=auto      # 把 deferred MCP 載入打開（見注意事項）
    ```
 
-4. Start the proxy and render server:
+4. 啟動 proxy 跟 render server：
    ```bash
    uv run python -m cc_i18n_proxy > /tmp/proxy.log 2>&1 &
    uv run python scripts/render_server.py > /tmp/render.log 2>&1 &
    ```
 
-5. In any `claude` session, enable per-session translation by typing `/intl`.
+5. 在任意 `claude` session 內打 `/intl` 啟動翻譯。
 
-By default the proxy runs in **passthrough mode** — it forwards everything unchanged. `/intl` opts the current session in: it generates a session UUID, adds it to the proxy's translation whitelist, and you can open `http://localhost:9090/<uuid>` to read the translated rendering. `/normal` exits translation mode.
+預設 proxy 是 **直通模式（passthrough）**，你打什麼它送什麼。`/intl` 把當前 session 加入翻譯白名單：產一個 session UUID、把 marker 塞進對話、之後可以在 `http://localhost:9090/<uuid>` 讀繁中 render。打 `/normal` 退出。
 
-## Setup the `/intl` skill
+## 設定 `/intl` skill
 
-`/intl` is a Claude Code skill, not part of this proxy. Create `~/.claude/skills/intl/SKILL.md` with this minimum content:
+`/intl` 是 cc 的 skill，不是這個 proxy 的一部分。在 `~/.claude/skills/intl/SKILL.md` 放最小範本：
 
 ````markdown
 ---
 name: intl
-description: Enable per-session Chinese-to-English wire translation via cc-translate-proxy.
+description: 啟動 cc-translate-proxy 對當前 session 的翻譯模式。
 ---
 
-Generate a 12-hex session UUID and emit a marker so the proxy whitelists this session.
+產生 12-hex session UUID、把 marker emit 出去，proxy 會在下一個 outbound request 看到 marker 然後把這個 session 加入翻譯白名單。
 
 ```bash
 UUID=$(python3 -c "import secrets; print(secrets.token_hex(6))")
@@ -84,31 +86,31 @@ echo "<cc-translate-proxy:enable uuid=\"$UUID\" />"
 echo "Render UI: http://localhost:9090/$UUID"
 ```
 
-The marker travels in the next outbound request. The proxy detects it and starts translating Chinese user text on the wire. Keep this skill content visible in conversation history so `/resume` and proxy restarts can recover the marker.
+讓這個 skill 內容留在對話歷史裡，這樣 `/resume` 跟 proxy 重啟都能自動 recover marker。
 ````
 
-A matching `~/.claude/skills/normal/SKILL.md` should emit `<cc-translate-proxy:disable uuid="<uuid>" />` to opt out.
+對應的 `~/.claude/skills/normal/SKILL.md` 要 emit `<cc-translate-proxy:disable uuid="<uuid>" />` 退出翻譯。
 
-## Architecture
+## 架構
 
-| File | Purpose |
+| 檔案 | 作用 |
 |---|---|
-| `src/cc_i18n_proxy/server.py` | FastAPI proxy intercepting `/v1/messages` |
-| `src/cc_i18n_proxy/translator.py` | Translator chain (Gemini → Groq → OpenRouter failover) |
-| `src/cc_i18n_proxy/providers/` | Per-provider adapters and state store |
-| `src/cc_i18n_proxy/cache.py` | SQLite cache keyed on content hash |
+| `src/cc_i18n_proxy/server.py` | FastAPI proxy，攔截 `/v1/messages` |
+| `src/cc_i18n_proxy/translator.py` | 翻譯 chain（Gemini → Groq → OpenRouter 自動切換）|
+| `src/cc_i18n_proxy/providers/` | 各 provider 的 adapter 跟 state store |
+| `src/cc_i18n_proxy/cache.py` | 以 content hash 為 key 的 SQLite cache |
 | `src/cc_i18n_proxy/audit.py` | Append-only JSONL audit log |
-| `src/cc_i18n_proxy/pipeline.py` | Translation pipeline orchestrator |
-| `src/cc_i18n_proxy/intl_sentinel.py` | Per-workspace `/intl` enable signal |
-| `scripts/render_server.py` | HTTP UI rendering translated turns at `:9090` |
+| `src/cc_i18n_proxy/pipeline.py` | 翻譯 pipeline orchestrator |
+| `src/cc_i18n_proxy/intl_sentinel.py` | per-workspace `/intl` enable 訊號 |
+| `scripts/render_server.py` | `:9090` 上的繁中 render 網頁 |
 
-## Caveats
+## 注意事項
 
-- **Auto-compaction may drop the marker**: at long conversation lengths (~50+ turns) CC may compact early messages, dropping the `/intl` marker. After that, type `/intl` again to re-enable.
-- **CC auto-disables ToolSearch on non-first-party hosts**. Set `ENABLE_TOOL_SEARCH=auto` to restore deferred MCP tool loading. The proxy forwards `tool_reference` blocks unchanged so this is safe.
-- **Translation isn't free**: Gemini Flash is cheap but not zero. Heavy users should monitor cost; provider failover helps when one rate-limits.
+- **Auto-compaction 可能會把 marker 吃掉**：對話長到 ~50+ 輪時，cc 可能把早期訊息壓縮成 summary，順便把 `/intl` marker 也壓沒了。發生後再打一次 `/intl` 就好。
+- **CC 在非 first-party host 會自動關掉 ToolSearch**。設 `ENABLE_TOOL_SEARCH=auto` 把 deferred MCP 載入打開。proxy 不動 `tool_reference` block 所以這樣安全。
+- **翻譯不是免費**：Gemini Flash 很便宜但不是零成本。重度使用者要監控花費，failover 機制可以分散到多個 provider。
 
-## Test
+## 測試
 
 ```bash
 uv run pytest -v
@@ -116,4 +118,4 @@ uv run pytest -v
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — 見 [LICENSE](LICENSE)。
