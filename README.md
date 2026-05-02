@@ -10,7 +10,9 @@ Claude Code 會根據你最後一句話的語言調整回覆。中英混用會�
 
 ## 截圖
 
-> _截圖補上中。_
+![繁中與英文雙向同步](screenshots/bilingual-render.png)
+
+上半部是 cc-translate-proxy 的本機繁中 render（瀏覽器 `localhost:9090/<uuid>`），下半部是 cc TUI 看到的英文版對話 — 同一輪對話、不同語言視角。網址 `?nostatusline=1` 是本機隱藏底部 statusline 用的截圖模式 query。
 
 ## 運作方式
 
