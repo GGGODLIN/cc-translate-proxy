@@ -1,0 +1,44 @@
+# cc-translate-proxy 翻譯 provider 設定範例
+#
+# 使用方式：
+#   1. cp providers.toml.example ~/.cc-i18n-proxy/providers.toml
+#   2. 編輯下面的 default_chain 跟 [providers.*] 選你要的 provider
+#   3. 對應的 API key 寫進 ~/.cc-i18n-proxy/.env (key 名要跟 api_key_env 對齊)
+
+# default_chain：依序嘗試的 provider，前面失敗才 fallback 到下一個
+default_chain = ["gemini", "groq", "openrouter"]
+
+# ─── Gemini (Google AI) ─────────────────────────────────────────────
+# 申請 key: https://aistudio.google.com/apikey
+[providers.gemini]
+kind = "gemini-native"
+api_key_env = "GEMINI_API_KEY"
+model = "gemini-2.5-flash"
+display_name = "Gemini 2.5 Flash"
+
+# ─── Groq ───────────────────────────────────────────────────────────
+# 申請 key: https://console.groq.com/keys
+[providers.groq]
+kind = "openai-compat"
+base_url = "https://api.groq.com/openai/v1"
+api_key_env = "GROQ_API_KEY"
+model = "llama-3.3-70b-versatile"
+display_name = "Groq Llama 3.3 70B"
+
+# ─── OpenRouter ─────────────────────────────────────────────────────
+# 申請 key: https://openrouter.ai/keys
+[providers.openrouter]
+kind = "openai-compat"
+base_url = "https://openrouter.ai/api/v1"
+api_key_env = "OPENROUTER_API_KEY"
+model = "openai/gpt-4o-mini"
+display_name = "OpenRouter GPT-4o-mini"
+
+# ─── 本機 Ollama (可選，免 API key) ──────────────────────────────────
+# 啟動: ollama serve; 拉模型: ollama pull qwen2.5
+# [providers.ollama]
+# kind = "openai-compat"
+# base_url = "http://localhost:11434/v1"
+# api_key_env = ""
+# model = "qwen2.5"
+# display_name = "Ollama Qwen 2.5"
