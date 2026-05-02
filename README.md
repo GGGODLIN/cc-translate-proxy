@@ -43,28 +43,36 @@ CC 看到乾淨英文對話；你瀏覽器讀到繁中 render。
    uv sync
    ```
 
-2. 設翻譯 provider 的 API key（任一即可，chain 順序為 Gemini → Groq → OpenRouter）：
+2. 設定翻譯 provider chain（複製範例後編輯）：
    ```bash
-   export GEMINI_API_KEY=...           # 預設
-   # 或
-   export GROQ_API_KEY=...
-   # 或
-   export OPENROUTER_API_KEY=...
+   mkdir -p ~/.cc-i18n-proxy
+   cp providers.toml.example ~/.cc-i18n-proxy/providers.toml
    ```
+   `providers.toml` 內 `default_chain` 控制嘗試順序、前面失敗才 fallback 到下一個。範例預設 `["gemini", "groq", "openrouter"]`，你可以刪到只剩一個或加入 `"ollama"`（本機免 key）。
 
-3. 把 cc 指向 proxy：
+3. 把對應的 API key 寫進 `~/.cc-i18n-proxy/.env`（變數名要跟 `providers.toml` 裡 `api_key_env` 對齊）：
+   ```bash
+   cat > ~/.cc-i18n-proxy/.env <<'EOF'
+   GEMINI_API_KEY=your-key-here
+   # GROQ_API_KEY=...
+   # OPENROUTER_API_KEY=...
+   EOF
+   ```
+   申請連結：[Gemini](https://aistudio.google.com/apikey) / [Groq](https://console.groq.com/keys) / [OpenRouter](https://openrouter.ai/keys)。任一個有就能跑，沒設的 provider 會自動從 chain 拿掉。
+
+4. 把 cc 指向 proxy：
    ```bash
    export ANTHROPIC_BASE_URL=http://localhost:8080
    export ENABLE_TOOL_SEARCH=auto      # 把 deferred MCP 載入打開（見注意事項）
    ```
 
-4. 啟動 proxy 跟 render server：
+5. 啟動 proxy 跟 render server：
    ```bash
    uv run python -m cc_i18n_proxy > /tmp/proxy.log 2>&1 &
    uv run python scripts/render_server.py > /tmp/render.log 2>&1 &
    ```
 
-5. 在任意 `claude` session 內打 `/intl` 啟動翻譯。
+6. 在任意 `claude` session 內打 `/intl` 啟動翻譯。
 
 預設 proxy 是 **直通模式（passthrough）**，你打什麼它送什麼。`/intl` 把當前 session 加入翻譯白名單：產一個 session UUID、把 marker 塞進對話、之後可以在 `http://localhost:9090/<uuid>` 讀繁中 render。打 `/normal` 退出。
 
