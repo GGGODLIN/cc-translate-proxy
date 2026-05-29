@@ -1,5 +1,4 @@
 """Tests for user role content block classification."""
-import pytest
 
 from cc_i18n_proxy.schema_parser import (
     BlockKind,

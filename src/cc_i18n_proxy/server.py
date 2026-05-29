@@ -8,6 +8,7 @@ import os
 import re
 import sys
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
 
@@ -24,7 +25,6 @@ from cc_i18n_proxy.intl_sentinel import write_last_enable
 from cc_i18n_proxy.pipeline import TranslationPipeline
 from cc_i18n_proxy.translator import (
     Translator,
-    TranslatorChain,
     TranslatorChainExhausted,
     TranslatorConfigError,
 )
@@ -143,16 +143,14 @@ def build_app(cfg: Config, *, pipeline: TranslationPipeline | None = None,
               chain: Translator | None = None,
               audit: AuditLogWriter | None = None,
               emitter: FileEmitter | None = None) -> FastAPI:
-    app = FastAPI(title="cc-i18n-proxy")
     upstream_client = httpx.AsyncClient(base_url=cfg.anthropic_upstream, timeout=httpx.Timeout(120.0))
 
     state = {"pipeline": pipeline, "chain": chain, "audit": audit, "emitter": emitter, "cache": None,
              "state_store": None, "providers_cfg": None,
              "translation_sessions": {}}
-    app.state.translation_sessions = state["translation_sessions"]
 
-    @app.on_event("startup")
-    async def _startup() -> None:
+    @asynccontextmanager
+    async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         if state["pipeline"] is None:
             from cc_i18n_proxy.providers import (
                 StateStore, build_chain_from_config, load_providers_config, write_active_head,
@@ -177,12 +175,13 @@ def build_app(cfg: Config, *, pipeline: TranslationPipeline | None = None,
             state["audit"] = AuditLogWriter(cfg.audit_log_dir)
         if state["emitter"] is None:
             state["emitter"] = FileEmitter(cfg.emit_file_dir)
-
-    @app.on_event("shutdown")
-    async def _shutdown() -> None:
+        yield
         await upstream_client.aclose()
         if state["cache"] is not None:
             await state["cache"].close()
+
+    app = FastAPI(title="cc-i18n-proxy", lifespan=_lifespan)
+    app.state.translation_sessions = state["translation_sessions"]
 
     @app.post("/v1/messages")
     async def messages(request: Request) -> StreamingResponse:

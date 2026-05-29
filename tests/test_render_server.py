@@ -253,7 +253,8 @@ def test_top_bar_warning_when_toml_missing(tmp_path, monkeypatch):
 
 def test_detail_page_substitutes_workspace_id_placeholder(tmp_path, monkeypatch):
     """Detail page must inject WORKSPACE_ID for the polling JS — no raw __WORKSPACE_ID__ leaks."""
-    import importlib, sys
+    import importlib
+    import sys
     home = tmp_path / "proxy_home"
     home.mkdir(parents=True, exist_ok=True)
     emit = tmp_path / "emit"

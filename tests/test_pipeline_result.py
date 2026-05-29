@@ -4,15 +4,12 @@ import pytest
 from cc_i18n_proxy.cache import TranslationCache
 from cc_i18n_proxy.pipeline import PipelineResult, TranslationPipeline
 from cc_i18n_proxy.translator import (
-    AnnotatedResult,
     AuthError,
     NamedAdapter,
     NetworkError,
     RateLimitError,
     TranslationResult,
     TranslatorChain,
-    TranslatorChainExhausted,
-    TranslatorConfigError,
 )
 
 

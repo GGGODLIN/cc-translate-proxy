@@ -17,6 +17,7 @@ import json
 import os as _os
 import re as _re
 import sys
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated
@@ -109,7 +110,13 @@ def _safe_session_path(session: str) -> Path:
     return EMIT_DIR / f"cc-i18n-{session}.md"
 
 
-app = FastAPI(title="cc-i18n-render")
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    _reload_providers_cache()
+    yield
+
+
+app = FastAPI(title="cc-i18n-render", lifespan=_lifespan)
 
 PROVIDERS_CACHE: dict = {"providers": {}, "default_chain": [], "load_error": None}
 STATE_STORE = _StateStore(PROXY_HOME / "state.json")
@@ -140,11 +147,6 @@ def _reload_providers_cache() -> None:
 
 
 _reload_providers_cache()
-
-
-@app.on_event("startup")
-async def _startup() -> None:
-    _reload_providers_cache()
 
 
 def _top_bar_html(session_tabs_html: str = "", include_status: bool = False) -> str:
@@ -965,7 +967,7 @@ function _isUserPromptBlockquote(bq) {
 }
 
 function _previewText(bq) {
-  const raw = bq.textContent.replace(PROMPT_EMOJI, '').trim().replace(/\s+/g, ' ');
+  const raw = bq.textContent.replace(PROMPT_EMOJI, '').trim().replace(/\\s+/g, ' ');
   if (raw.length <= PREVIEW_MAX_CHARS) return raw;
   return raw.slice(0, PREVIEW_MAX_CHARS) + '…';
 }

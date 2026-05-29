@@ -5,8 +5,6 @@ from pathlib import Path
 import pytest
 
 from cc_i18n_proxy.providers.config import (
-    ProviderEntry,
-    ProvidersConfig,
     build_chain_from_config,
     load_providers_config,
 )

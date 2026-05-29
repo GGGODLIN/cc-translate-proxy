@@ -2,7 +2,6 @@
 import pytest
 
 from cc_i18n_proxy.translator import (
-    AnnotatedResult,
     AuthError,
     ClientError,
     NamedAdapter,

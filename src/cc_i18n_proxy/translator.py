@@ -1,7 +1,6 @@
 """Translator adapter abstraction. Tier (a): GeminiNativeAdapter."""
 from __future__ import annotations
 
-import asyncio
 import json as _json
 import logging as _logging
 import re
@@ -9,8 +8,9 @@ from dataclasses import dataclass, field
 from datetime import datetime as _datetime, timezone as _timezone
 from typing import Any, Callable, Protocol
 
-import google.generativeai as genai
 import httpx as _httpx
+from google import genai
+from google.genai import types as _genai_types
 
 _log = _logging.getLogger(__name__)
 
@@ -149,7 +149,7 @@ def _concat_for_legacy_role(system: str, user: str) -> str:
 # 1. Prefer the provider's native system mechanism if available:
 #    - OpenAI-compat: messages[0].role = "system"
 #    - Anthropic: top-level `system` parameter
-#    - google-generativeai: GenerativeModel(system_instruction=...)
+#    - google-genai: GenerateContentConfig(system_instruction=...)
 # 2. If unsupported, fall back to _concat_for_legacy_role(_SYSTEM_RULES, user_prompt).
 #    Output is identical to the pre-split single-prompt mode — defeats prefix
 #    caching but correctness is unaffected.
@@ -157,32 +157,38 @@ def _concat_for_legacy_role(system: str, user: str) -> str:
 #    system prefix doesn't change per request.
 
 
+_SYS_INSTRUCTION_REJECT_RE = re.compile(
+    r"system[\s_]?instruction|developer[\s_]?instruction", re.IGNORECASE
+)
+
+
+def _is_system_instruction_rejection(exc: Exception) -> bool:
+    """True if exc is a 400 rejecting system_instruction (older Gemma models).
+
+    google-genai raises errors.ClientError (code == 400) when a model does not
+    accept system_instruction. Duck-typed on .code / .message so the check
+    survives SDK exception-hierarchy changes and stays trivially testable.
+    """
+    code = getattr(exc, "code", None)
+    message = getattr(exc, "message", None) or str(exc)
+    return code == 400 and bool(_SYS_INSTRUCTION_REJECT_RE.search(message))
+
+
 class GeminiNativeAdapter:
-    """Translator adapter backed by google-generativeai SDK.
+    """Translator adapter backed by the google-genai SDK.
 
     Supports Gemini and Gemma model families served through ai.google.dev.
-    Tries native system_instruction first; falls back to single-prompt
-    concat for models that don't accept system_instruction (older Gemma).
+    Sends system_instruction natively; on the first call, if the model rejects
+    system_instruction (older Gemma), it falls back to a single concatenated
+    prompt and caches that decision for every subsequent call.
     """
 
     def __init__(self, api_key: str, model: str = "gemini-2.5-flash"):
         if not api_key:
             raise ValueError("GEMINI_API_KEY required for GeminiNativeAdapter")
-        genai.configure(api_key=api_key)
+        self._client = genai.Client(api_key=api_key)
         self._model_name = model
-        try:
-            self._model = genai.GenerativeModel(
-                model, system_instruction=_SYSTEM_RULES,
-            )
-            self._uses_system_instruction = True
-        except Exception as exc:  # noqa: BLE001
-            _log.warning(
-                "GenerativeModel(%s) rejected system_instruction (%s); "
-                "falling back to concatenated prompt",
-                model, exc,
-            )
-            self._model = genai.GenerativeModel(model)
-            self._uses_system_instruction = False
+        self._uses_system_instruction: bool | None = None
 
     async def translate(self, text: str, *, source: str, target: str) -> TranslationResult:
         user_prompt = _USER_TEMPLATE.format(
@@ -190,18 +196,53 @@ class GeminiNativeAdapter:
             source_name=_LANG_NAMES.get(source, source),
             target_name=_LANG_NAMES.get(target, target),
         )
-        prompt = (
-            user_prompt if self._uses_system_instruction
-            else _concat_for_legacy_role(_SYSTEM_RULES, user_prompt)
-        )
-        resp = await self._generate_async(prompt)
+        resp = await self._generate_with_fallback(user_prompt)
         translated = (resp.text or "").strip()
         if not translated:
             raise RuntimeError("translator returned empty response")
         return TranslationResult(text=translated, source_lang=source, target_lang=target)
 
-    async def _generate_async(self, prompt: str):
-        return await asyncio.to_thread(self._model.generate_content, prompt)
+    async def _generate_with_fallback(self, user_prompt: str):
+        if self._uses_system_instruction is True:
+            return await self._generate_async(user_prompt, use_system_instruction=True)
+        if self._uses_system_instruction is False:
+            return await self._generate_async(
+                _concat_for_legacy_role(_SYSTEM_RULES, user_prompt),
+                use_system_instruction=False,
+            )
+        # First call: probe whether the model accepts system_instruction, then
+        # cache the verdict. Deliberately unlocked — each translate() is itself a
+        # real request, so concurrent first-calls just probe in parallel
+        # (idempotent; correctness preserved). The only redundancy is extra
+        # rejected probes during a cold Gemma burst, which self-heals once the
+        # flag settles; a lock here would needlessly serialise the common
+        # (accepting) path's first burst.
+        try:
+            resp = await self._generate_async(user_prompt, use_system_instruction=True)
+        except Exception as exc:  # noqa: BLE001 — narrow check below; re-raise otherwise
+            if not _is_system_instruction_rejection(exc):
+                raise
+            _log.warning(
+                "model %s rejected system_instruction (%s); "
+                "falling back to concatenated prompt",
+                self._model_name, exc,
+            )
+            self._uses_system_instruction = False
+            return await self._generate_async(
+                _concat_for_legacy_role(_SYSTEM_RULES, user_prompt),
+                use_system_instruction=False,
+            )
+        self._uses_system_instruction = True
+        return resp
+
+    async def _generate_async(self, prompt: str, *, use_system_instruction: bool):
+        config = (
+            _genai_types.GenerateContentConfig(system_instruction=_SYSTEM_RULES)
+            if use_system_instruction else None
+        )
+        return await self._client.aio.models.generate_content(
+            model=self._model_name, contents=prompt, config=config,
+        )
 
 
 # Backward-compat alias — kept until all imports migrated. Removed in later task.

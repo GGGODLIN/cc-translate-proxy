@@ -12,8 +12,6 @@ from cc_i18n_proxy.cache import TranslationCache
 from cc_i18n_proxy.emitter import FileEmitter
 from cc_i18n_proxy.pipeline import TranslationPipeline
 from cc_i18n_proxy.server import (
-    MARKER_ENABLE_RE,
-    MARKER_DISABLE_RE,
     build_app,
     scan_and_strip_markers,
 )
