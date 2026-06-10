@@ -29,7 +29,7 @@ async def test_emit_warning_event_renders_inline(tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_emit_grace_degrades_on_oserror(tmp_path: Path, capsys, monkeypatch):
+async def test_emit_grace_degrades_on_oserror(tmp_path: Path, caplog, monkeypatch):
     emitter = FileEmitter(tmp_path)
 
     def boom(path, text):
@@ -38,5 +38,4 @@ async def test_emit_grace_degrades_on_oserror(tmp_path: Path, capsys, monkeypatc
 
     # Must not raise — grace degrade per spec §7.1 F7 extended pattern.
     await emitter.emit("session-x", "any text")
-    captured = capsys.readouterr()
-    assert "[emitter] write failed" in captured.err
+    assert "emit write failed" in caplog.text

@@ -245,10 +245,6 @@ class GeminiNativeAdapter:
         )
 
 
-# Backward-compat alias — kept until all imports migrated. Removed in later task.
-GeminiFlashAdapter = GeminiNativeAdapter
-
-
 class OpenAICompatAdapter:
     """Translator adapter for any OpenAI-compatible /v1/chat/completions endpoint.
 
@@ -377,6 +373,12 @@ class TranslatorChain:
         self._default_chain = default_chain
         self._enabled_by_name = enabled_by_name
         self._read_head = active_head_reader
+
+    def default_chain_names(self) -> list[str]:
+        return [a.name for a in self._default_chain]
+
+    def enabled_adapters(self) -> dict[str, NamedAdapter]:
+        return dict(self._enabled_by_name)
 
     async def translate(self, text: str, *, source: str, target: str) -> AnnotatedResult:
         head_name = self._read_head()

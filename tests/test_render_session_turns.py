@@ -39,7 +39,7 @@ display_name = "Provider Beta"
 
 def _write_audit(home: Path, session: str, lines: list[dict]):
     p = home / "audit" / f"{session}.jsonl"
-    p.write_text("\n".join(json.dumps(l) for l in lines) + "\n")
+    p.write_text("\n".join(json.dumps(entry) for entry in lines) + "\n")
 
 
 def test_returns_404_when_session_missing(render_app):

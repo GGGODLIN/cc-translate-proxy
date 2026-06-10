@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
-import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -53,7 +55,7 @@ class AuditLogWriter:
                 await asyncio.to_thread(self._append, path, line)
             except OSError as exc:
                 # Spec §7.1 F7: audit failure must not block main flow.
-                print(f"[audit] write failed for {entry.session_id}: {exc}", file=sys.stderr)
+                log.error("audit write failed for %s: %s", entry.session_id, exc)
 
     @staticmethod
     def _append(path: Path, line: str) -> None:

@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
 import re
 import sys
+import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -38,6 +40,23 @@ class _RetryReq(_BaseModel):
     head: str = ""
 
 log = logging.getLogger(__name__)
+
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _spawn_background(coro) -> None:
+    """Run a fire-and-forget coroutine while keeping a strong task reference.
+
+    asyncio only holds weak references to tasks; without this registry a task
+    can be garbage-collected mid-flight and its audit write silently lost.
+    """
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
+
+def _new_turn_id() -> int:
+    return uuid.uuid4().int % 10_000_000
 
 
 def _trace(event: dict[str, object]) -> None:
@@ -187,7 +206,7 @@ def build_app(cfg: Config, *, pipeline: TranslationPipeline | None = None,
     async def messages(request: Request) -> StreamingResponse:
         raw_body = await request.json()
         if cfg.log_protocol_observations:
-            _log_protocol(cfg, raw_body)
+            await asyncio.to_thread(_log_protocol, cfg, raw_body)
 
         body, marker_decision = scan_and_strip_markers(raw_body)
 
@@ -266,9 +285,9 @@ def build_app(cfg: Config, *, pipeline: TranslationPipeline | None = None,
             ws_info = state["translation_sessions"].get(
                 session_id, {"workspace_id": "default", "workspace_name": "default"}
             )
-            asyncio.create_task(_post_response_fork(
+            _spawn_background(_post_response_fork(
                 cfg, state, session_id, body, translated_body, upstream_bytes,
-                sources, translation_status,
+                dict(sources), dict(translation_status),
                 user_provider=user_provider,
                 user_failover_attempts=user_failover_attempts,
                 user_failover_errors=user_failover_errors,
@@ -293,7 +312,8 @@ def build_app(cfg: Config, *, pipeline: TranslationPipeline | None = None,
             raise HTTPException(404, "session not found")
 
         target = None
-        for line in audit_path.read_text(encoding="utf-8").splitlines():
+        audit_text = await asyncio.to_thread(audit_path.read_text, encoding="utf-8")
+        for line in audit_text.splitlines():
             if not line.strip():
                 continue
             try:
@@ -314,13 +334,12 @@ def build_app(cfg: Config, *, pipeline: TranslationPipeline | None = None,
 
         head = req.head
         if not head:
-            chain_obj = state["chain"]
             failed_provs = [
                 err.get("provider") for err in target.get("failover_errors", {}).get("assistant", [])
             ]
-            for named in chain_obj._default_chain:
-                if named.name not in failed_provs:
-                    head = named.name
+            for name in state["chain"].default_chain_names():
+                if name not in failed_provs:
+                    head = name
                     break
             if not head:
                 raise HTTPException(503, "all known providers already failed for this turn")
@@ -356,7 +375,7 @@ def build_app(cfg: Config, *, pipeline: TranslationPipeline | None = None,
         new_entry = TurnEntry(
             timestamp=datetime.now(timezone.utc).isoformat(),
             session_id=safe_session,
-            turn_id=int(datetime.now(timezone.utc).timestamp() * 1000) % 10_000_000,
+            turn_id=_new_turn_id(),
             user_zh=target.get("user_zh", ""),
             user_en=target.get("user_en", ""),
             assistant_en=assistant_en,
@@ -470,7 +489,7 @@ async def _post_response_fork(
         entry = TurnEntry(
             timestamp=datetime.now(timezone.utc).isoformat(),
             session_id=session_id,
-            turn_id=int(datetime.now(timezone.utc).timestamp() * 1000) % 10_000_000,
+            turn_id=_new_turn_id(),
             user_zh=user_zh,
             user_en=user_en,
             assistant_en=assistant_en,
@@ -618,7 +637,6 @@ def _derive_session_id(body: dict, headers) -> str:
     if h:
         return h
     # Fallback: hash first user message + model — stable per session
-    import hashlib
     msgs = body.get("messages", [])
     if not isinstance(msgs, list):
         msgs = []

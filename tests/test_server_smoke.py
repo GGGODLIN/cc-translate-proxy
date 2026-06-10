@@ -79,10 +79,7 @@ def test_cache_hit_no_translator_call_on_repeat(app_client):
     body = {"model": "x", "max_tokens": 1, "messages": [{"role": "user", "content": f"{_ENABLE}你好"}]}
 
     client.post("/v1/messages", json=body, headers={"x-api-key": "test"})
-    initial_calls = translator.translate.await_count
-
     client.post("/v1/messages", json=body, headers={"x-api-key": "test"})
-    repeat_calls = translator.translate.await_count
 
     user_translate_calls = sum(
         1 for call in translator.translate.await_args_list

@@ -41,6 +41,10 @@ class StateStore:
         self._cached_state: dict[str, Any] | None = None
         self._cached_mtime: float = -1
 
+    def invalidate(self) -> None:
+        self._cached_state = None
+        self._cached_mtime = -1
+
     def read_active_head(self) -> str | None:
         state = self.read_full_state()
         if state is None:

@@ -1,6 +1,10 @@
-"""Test session tab label fallback chain (recap → human → sid)."""
+"""Test session tab label fallback chain (recap → human → sid) and top bar API."""
+import importlib
 import json
 from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
 
 from scripts.render_server import _session_tab_label
 
@@ -98,13 +102,6 @@ def test_label_falls_back_to_sid_when_only_system_turns(tmp_path):
     ])
     # No recap, no human → sid fallback
     assert _session_tab_label(tmp_path, sid) == "onlysys…"
-
-
-"""Tests for top bar API endpoints."""
-import importlib
-
-import pytest
-from fastapi.testclient import TestClient
 
 
 @pytest.fixture

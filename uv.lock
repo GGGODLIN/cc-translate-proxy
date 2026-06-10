@@ -48,7 +48,7 @@ wheels = [
 ]
 
 [[package]]
-name = "cc-i18n-proxy"
+name = "cc-translate-proxy"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

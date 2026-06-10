@@ -53,7 +53,7 @@ async def test_audit_appends_multiple_entries(tmp_path: Path):
 
     lines = (tmp_path / "s.jsonl").read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) == 3
-    assert [json.loads(l)["turn_id"] for l in lines] == [0, 1, 2]
+    assert [json.loads(line)["turn_id"] for line in lines] == [0, 1, 2]
 
 
 @pytest.mark.asyncio
@@ -74,7 +74,7 @@ async def test_audit_rejects_unsafe_session_id(tmp_path: Path):
 
 
 @pytest.mark.asyncio
-async def test_audit_grace_degrades_on_oserror(tmp_path: Path, capsys, monkeypatch):
+async def test_audit_grace_degrades_on_oserror(tmp_path: Path, caplog, monkeypatch):
     writer = AuditLogWriter(tmp_path)
     entry = TurnEntry(
         timestamp="2026-05-01T00:00:00+00:00",
@@ -93,8 +93,7 @@ async def test_audit_grace_degrades_on_oserror(tmp_path: Path, capsys, monkeypat
 
     # Must not raise — spec §7.1 F7 grace degrade.
     await writer.write(entry)
-    captured = capsys.readouterr()
-    assert "[audit] write failed" in captured.err
+    assert "audit write failed" in caplog.text
 
 def test_turn_entry_retry_of_default_is_none():
     entry = TurnEntry(

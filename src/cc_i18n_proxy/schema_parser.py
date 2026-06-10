@@ -1,7 +1,6 @@
 """Classify user role content blocks per spec §4 Translation Boundary Rules."""
 from __future__ import annotations
 
-from dataclasses import dataclass  # noqa: F401
 from enum import Enum
 from typing import Any
 

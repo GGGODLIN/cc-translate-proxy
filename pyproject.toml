@@ -1,7 +1,9 @@
 [project]
-name = "cc-i18n-proxy"
+name = "cc-translate-proxy"
 version = "0.1.0"
-description = "Sidecar i18n proxy for Claude Code"
+description = "Sidecar translation proxy for Claude Code — English upstream, Traditional Chinese render"
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.110",
@@ -20,6 +22,11 @@ dev = [
     "ruff>=0.5",
 ]
 
+[project.urls]
+Homepage = "https://github.com/GGGODLIN/cc-translate-proxy"
+Repository = "https://github.com/GGGODLIN/cc-translate-proxy"
+Issues = "https://github.com/GGGODLIN/cc-translate-proxy/issues"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -31,3 +38,10 @@ packages = ["src/cc_i18n_proxy"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint.per-file-ignores]
+# Private-only daemon, mid-refactor; not shipped to the public repo.
+"scripts/statusline_daemon.py" = ["F401", "E402"]

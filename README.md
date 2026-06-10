@@ -34,7 +34,7 @@ CC 看到乾淨英文對話；你瀏覽器讀到繁中 render。
 ## 使用前須知
 
 - **你的 prompt 跟 cc 回覆會送給第三方 LLM**（預設 Gemini Flash）做翻譯。**含敏感內容的 session 不要開**。
-- **本機會留 audit log**（含翻譯前後的 prompt / 回覆）在 `audit/` 目錄。除錯用，要定期清。
+- **本機會留兩份對話落檔**：audit log（翻譯前後的完整 prompt / 回覆，JSONL）在 `~/.cc-i18n-proxy/audit/`、render 用的 emit 檔（繁中 markdown）在 `~/.cc-i18n-proxy/emit/`。兩者都是除錯 / 渲染用，內容等同完整對話紀錄，要定期清。
 - **個人實驗工具**，不適合 production。預期會碰到 bug。
 
 ## 快速開始
@@ -95,20 +95,39 @@ description: 啟動 cc-translate-proxy 對當前 session 的翻譯模式。
 
 ```bash
 UUID=$(python3 -c "import secrets; print(secrets.token_hex(6))")
-echo "<cc-translate-proxy:enable uuid=\"$UUID\" />"
+echo "[CC_I18N_PROXY:ENABLE_THIS_SESSION:uuid=$UUID]"
 echo "Render UI: http://localhost:9090/$UUID"
 ```
 
 讓這個 skill 內容留在對話歷史裡，這樣 `/resume` 跟 proxy 重啟都能自動 recover marker。
 ````
 
-對應的 `~/.claude/skills/normal/SKILL.md` 要 emit `<cc-translate-proxy:disable uuid="<uuid>" />` 退出翻譯。
+對應的 `~/.claude/skills/normal/SKILL.md` 要 emit `[CC_I18N_PROXY:DISABLE_THIS_SESSION:uuid=<uuid>]` 退出翻譯。
+
+marker 也可以附上 workspace 資訊（多專案並行時 render 首頁會按 workspace 分組）：
+
+```
+[CC_I18N_PROXY:ENABLE_THIS_SESSION:uuid=<uuid>:workspace=<id>:workspace_name=<名稱>]
+```
+
+不帶 workspace 時一律歸到 `default` 分組，功能不受影響。
 
 ## 注意事項
 
 - **Auto-compaction 可能會把 marker 吃掉**：對話長到 ~50+ 輪時，cc 可能把早期訊息壓縮成 summary，順便把 `/intl` marker 也壓沒了。發生後再打一次 `/intl` 就好。
 - **CC 在非 first-party host 會自動關掉 ToolSearch**。設 `ENABLE_TOOL_SEARCH=auto` 把 deferred MCP 載入打開。proxy 不動 `tool_reference` block 所以這樣安全。
 - **翻譯不是免費**：Gemini Flash 很便宜但不是零成本。重度使用者要監控花費，failover 機制可以分散到多個 provider。
+
+## 環境變數
+
+| 變數 | 預設 | 用途 |
+|---|---|---|
+| `CC_I18N_PROXY_HOME` | `~/.cc-i18n-proxy` | 設定 / audit / emit / state 的根目錄 |
+| `CC_I18N_PROXY_PORT` | `8080` | proxy 監聽 port |
+| `CC_I18N_RENDER_PORT` | `9090` | render server 監聽 port |
+| `CC_I18N_PROXY_EMIT_DIR` | `$CC_I18N_PROXY_HOME/emit` | 繁中 emit 檔輸出目錄 |
+
+另附 `scripts/render.sh <session-id>`：不開瀏覽器、在 terminal 用 [glow](https://github.com/charmbracelet/glow) 直接 tail 繁中 emit 檔的輕量視圖。
 
 ## 測試
 

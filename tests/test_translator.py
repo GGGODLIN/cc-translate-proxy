@@ -1,4 +1,4 @@
-"""Test Translator interface and GeminiFlashAdapter."""
+"""Test Translator interface and GeminiNativeAdapter."""
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -6,7 +6,7 @@ import pytest
 from cc_i18n_proxy.translator import (
     TranslationResult,
     has_cjk,
-    GeminiFlashAdapter,
+    GeminiNativeAdapter,
     _is_system_instruction_rejection,
 )
 
@@ -29,7 +29,7 @@ def test_has_cjk_detects_chinese():
 
 @pytest.mark.asyncio
 async def test_gemini_adapter_calls_api_and_returns_translation():
-    adapter = GeminiFlashAdapter(api_key="fake-key")
+    adapter = GeminiNativeAdapter(api_key="fake-key")
     fake_resp = AsyncMock()
     fake_resp.text = "Hello, this is a test."
 
@@ -45,7 +45,7 @@ async def test_gemini_adapter_calls_api_and_returns_translation():
 
 @pytest.mark.asyncio
 async def test_gemini_adapter_raises_on_empty_response():
-    adapter = GeminiFlashAdapter(api_key="fake-key")
+    adapter = GeminiNativeAdapter(api_key="fake-key")
     fake_resp = AsyncMock()
     fake_resp.text = ""
 
@@ -68,7 +68,7 @@ def test_is_system_instruction_rejection_detection():
 
 @pytest.mark.asyncio
 async def test_gemini_falls_back_to_concat_when_system_instruction_rejected():
-    adapter = GeminiFlashAdapter(api_key="fake-key")
+    adapter = GeminiNativeAdapter(api_key="fake-key")
     good = AsyncMock()
     good.text = "translated"
     reject = _FakeAPIError(400, "Developer instruction is not enabled for models/gemma-3")
@@ -84,7 +84,7 @@ async def test_gemini_falls_back_to_concat_when_system_instruction_rejected():
 
 @pytest.mark.asyncio
 async def test_gemini_caches_fallback_decision_after_rejection():
-    adapter = GeminiFlashAdapter(api_key="fake-key")
+    adapter = GeminiNativeAdapter(api_key="fake-key")
     good = AsyncMock()
     good.text = "ok"
     reject = _FakeAPIError(400, "system_instruction is not supported")
@@ -99,7 +99,7 @@ async def test_gemini_caches_fallback_decision_after_rejection():
 
 @pytest.mark.asyncio
 async def test_gemini_propagates_non_system_instruction_error():
-    adapter = GeminiFlashAdapter(api_key="fake-key")
+    adapter = GeminiNativeAdapter(api_key="fake-key")
     boom = _FakeAPIError(429, "rate limited")
 
     with patch.object(adapter, "_generate_async", side_effect=boom):

@@ -128,13 +128,11 @@ def build_chain_from_config(
             "default_chain is empty after filtering disabled / missing-key providers"
         )
 
-    chain = TranslatorChain(
+    return TranslatorChain(
         default_chain=default_chain,
         enabled_by_name=enabled_by_name,
         active_head_reader=active_head_reader,
     )
-    chain._unsafe_introspect = lambda: (default_chain, enabled_by_name)
-    return chain
 
 
 def _build_adapter(

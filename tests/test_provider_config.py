@@ -81,12 +81,10 @@ display_name = "Y"
 enabled = false
 ''')
     cfg = load_providers_config(toml_path)
-    default_chain, enabled_by_name = build_chain_from_config(
-        cfg, active_head_reader=lambda: None,
-    )._unsafe_introspect()
-    names = [a.name for a in default_chain]
+    chain = build_chain_from_config(cfg, active_head_reader=lambda: None)
+    names = chain.default_chain_names()
     assert "x" in names and "y" not in names
-    assert "y" not in enabled_by_name
+    assert "y" not in chain.enabled_adapters()
 
 
 def test_missing_api_key_disables_provider(tmp_path, env_keys, caplog):
@@ -109,9 +107,8 @@ display_name = "B"
 ''')
     cfg = load_providers_config(toml_path)
     chain = build_chain_from_config(cfg, active_head_reader=lambda: None)
-    default_chain, enabled_by_name = chain._unsafe_introspect()
-    assert [a.name for a in default_chain] == ["b"]
-    assert "a" not in enabled_by_name
+    assert chain.default_chain_names() == ["b"]
+    assert "a" not in chain.enabled_adapters()
 
 
 def test_empty_default_chain_after_filtering_raises(tmp_path, env_keys):
@@ -188,9 +185,9 @@ display_name = "Gemini · Gemma"
 ''')
     cfg = load_providers_config(toml_path)
     chain = build_chain_from_config(cfg, active_head_reader=lambda: None)
-    default_chain, enabled_by_name = chain._unsafe_introspect()
-    assert isinstance(enabled_by_name["groq-llama"].adapter, OpenAICompatAdapter)
-    assert isinstance(enabled_by_name["gem"].adapter, GeminiNativeAdapter)
+    enabled = chain.enabled_adapters()
+    assert isinstance(enabled["groq-llama"].adapter, OpenAICompatAdapter)
+    assert isinstance(enabled["gem"].adapter, GeminiNativeAdapter)
 
 
 def test_dotenv_load_from_path(tmp_path, env_keys):
@@ -248,9 +245,8 @@ display_name = "Groq"
 ''')
     cfg = load_providers_config(cfg_path)
     chain = build_chain_from_config(cfg, active_head_reader=lambda: None)
-    default_chain, enabled_by_name = chain._unsafe_introspect()
-    assert "g" not in enabled_by_name
-    assert [a.name for a in default_chain] == ["groq"]
+    assert "g" not in chain.enabled_adapters()
+    assert chain.default_chain_names() == ["groq"]
 
 
 def test_empty_default_chain_raises_at_parse(tmp_path):

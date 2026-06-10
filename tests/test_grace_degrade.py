@@ -75,7 +75,7 @@ def test_anthropic_5xx_passes_through_to_cc(setup_app):
 @respx.mock
 def test_malformed_messages_passes_through_with_warning(setup_app):
     client, translator, tmp_path = setup_app
-    forward = respx.post("https://api.anthropic.com/v1/messages").mock(
+    respx.post("https://api.anthropic.com/v1/messages").mock(
         return_value=Response(200, json={
             "id": "m", "type": "message", "role": "assistant",
             "content": [{"type": "text", "text": "ok"}], "model": "x",

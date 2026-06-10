@@ -10,7 +10,8 @@ if [[ $# -lt 1 ]]; then
 fi
 
 SESSION="$1"
-EMIT_DIR="${CC_I18N_PROXY_EMIT_DIR:-/tmp}"
+PROXY_HOME="${CC_I18N_PROXY_HOME:-$HOME/.cc-i18n-proxy}"
+EMIT_DIR="${CC_I18N_PROXY_EMIT_DIR:-$PROXY_HOME/emit}"
 FILE="$EMIT_DIR/cc-i18n-${SESSION}.md"
 
 if ! command -v glow >/dev/null 2>&1; then

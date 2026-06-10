@@ -152,7 +152,7 @@ def test_enable_marker_uuid_overrides_session_id_and_translates(passthrough_clie
 @respx.mock
 def test_disable_marker_with_matching_uuid_removes_session(passthrough_client):
     client, translator, app = passthrough_client
-    forward = respx.post("https://api.anthropic.com/v1/messages").mock(
+    respx.post("https://api.anthropic.com/v1/messages").mock(
         return_value=Response(200, json={
             "id": "msg_1", "type": "message", "role": "assistant",
             "content": [{"type": "text", "text": "Hi"}], "model": "x",

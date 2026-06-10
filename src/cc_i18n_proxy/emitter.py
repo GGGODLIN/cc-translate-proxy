@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import asyncio
-import sys
+import logging
 from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 
 class FileEmitter:
@@ -22,7 +24,7 @@ class FileEmitter:
                 await asyncio.to_thread(self._append, self._path(session_id), text)
             except OSError as exc:
                 # Spec §7.1 F7 (extended to render): emit failure must not block main flow.
-                print(f"[emitter] write failed for {session_id}: {exc}", file=sys.stderr)
+                log.error("emit write failed for %s: %s", session_id, exc)
 
     async def emit_warning(self, session_id: str, message: str) -> None:
         formatted = f"\n> ⚠ {message}\n\n"
