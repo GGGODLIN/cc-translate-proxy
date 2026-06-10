@@ -1,5 +1,6 @@
 """Tier (f): emit md skips recap/hook turns; audit JSONL still records them."""
 import json
+import time
 from unittest.mock import AsyncMock
 
 import pytest
@@ -66,6 +67,25 @@ def _audit_path(tmp_path, sid: str):
     return tmp_path / "audit" / f"{sid}.jsonl"
 
 
+def _wait_for(predicate, timeout: float = 5.0, interval: float = 0.02) -> bool:
+    """Poll until predicate() is true. The post-response fork runs as a
+    fire-and-forget task, so file assertions need a sync point."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        time.sleep(interval)
+    return predicate()
+
+
+def _wait_audit_written(tmp_path, sid: str):
+    path = _audit_path(tmp_path, sid)
+    assert _wait_for(
+        lambda: path.exists() and path.read_text(encoding="utf-8").endswith("\n")
+    ), "post-response fork must write audit JSONL"
+    return path
+
+
 @respx.mock
 def test_recap_turn_not_in_emit_md_but_in_audit(setup_app):
     client, tmp_path = setup_app
@@ -84,7 +104,7 @@ def test_recap_turn_not_in_emit_md_but_in_audit(setup_app):
         assert "translated" not in emit.read_text(encoding="utf-8") or \
             emit.read_text(encoding="utf-8").strip() == ""
 
-    audit_lines = _audit_path(tmp_path, _FAKE_UUID).read_text(
+    audit_lines = _wait_audit_written(tmp_path, _FAKE_UUID).read_text(
         encoding="utf-8"
     ).splitlines()
     assert audit_lines, "audit must still record recap turn"
@@ -106,7 +126,7 @@ def test_hook_feedback_turn_not_in_emit(setup_app):
         text = emit.read_text(encoding="utf-8")
         assert "skip" not in text or text.strip() == ""
 
-    audit = _audit_path(tmp_path, _FAKE_UUID).read_text(encoding="utf-8")
+    audit = _wait_audit_written(tmp_path, _FAKE_UUID).read_text(encoding="utf-8")
     last = json.loads(audit.splitlines()[-1])
     assert last["prompt_source"] == "hook"
 
@@ -121,14 +141,16 @@ def test_human_turn_emitted_normally(setup_app):
     assert resp.status_code == 200
 
     emit = _emit_path(tmp_path, _FAKE_UUID)
-    assert emit.exists(), "human turn must produce emit md"
+    assert _wait_for(
+        lambda: emit.exists() and "translated" in emit.read_text(encoding="utf-8")
+    ), "human turn must produce emit md"
     text = emit.read_text(encoding="utf-8")
     # blockquote `> 👤` from Tier (e)
     assert "👤" in text
     # assistant translated content
     assert "translated" in text
 
-    audit = _audit_path(tmp_path, _FAKE_UUID).read_text(encoding="utf-8")
+    audit = _wait_audit_written(tmp_path, _FAKE_UUID).read_text(encoding="utf-8")
     last = json.loads(audit.splitlines()[-1])
     assert last["prompt_source"] == "human"
 
@@ -149,6 +171,6 @@ def test_command_message_not_in_emit_md_but_in_audit(setup_app):
         assert "Translation mode ready" not in text or text.strip() == ""
         assert "command-message" not in text or text.strip() == ""
 
-    audit = _audit_path(tmp_path, _FAKE_UUID).read_text(encoding="utf-8")
+    audit = _wait_audit_written(tmp_path, _FAKE_UUID).read_text(encoding="utf-8")
     last = json.loads(audit.splitlines()[-1])
     assert last["prompt_source"] == "command"
