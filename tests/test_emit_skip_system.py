@@ -37,7 +37,8 @@ async def setup_app(tmp_path, tmp_config):
     audit = AuditLogWriter(tmp_path / "audit")
     emitter = FileEmitter(tmp_path / "emit")
     app = build_app(tmp_config, pipeline=pipeline, chain=chain, audit=audit, emitter=emitter)
-    yield TestClient(app), tmp_path
+    with TestClient(app) as client:
+        yield client, tmp_path
     await cache.close()
 
 
