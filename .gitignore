@@ -27,3 +27,6 @@ state/
 # IDE
 .idea/
 .vscode/
+
+# brag launch video working artifacts (demo GIF lives in screenshots/)
+brag-output/

@@ -2,6 +2,8 @@
 
 讓 [Claude Code](https://claude.com/claude-code) 用英文跟 Anthropic 對話、你用繁中讀寫的 sidecar 翻譯 proxy。
 
+![cc-translate-proxy demo — 一段對話，兩種語言](screenshots/brag-demo.gif)
+
 ## 為什麼做這個
 
 兩件事讓我覺得值得寫個 sidecar：
